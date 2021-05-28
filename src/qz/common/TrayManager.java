@@ -208,47 +208,47 @@ public class TrayManager {
         JPopupMenu popup = new JPopupMenu();
         componentList.add(popup);
 
-        JMenu advancedMenu = new JMenu("Advanced");
+        JMenu advancedMenu = new JMenu("Avançado");
         advancedMenu.setMnemonic(KeyEvent.VK_A);
         advancedMenu.setIcon(iconCache.getIcon(IconCache.Icon.SETTINGS_ICON));
 
-        JMenuItem sitesItem = new JMenuItem("Site Manager...", iconCache.getIcon(IconCache.Icon.SAVED_ICON));
+        JMenuItem sitesItem = new JMenuItem("Gerenciador de sites...", iconCache.getIcon(IconCache.Icon.SAVED_ICON));
         sitesItem.setMnemonic(KeyEvent.VK_M);
         sitesItem.addActionListener(savedListener);
         sitesDialog = new SiteManagerDialog(sitesItem, iconCache, prefs);
         componentList.add(sitesDialog);
 
-        JMenuItem diagnosticMenu = new JMenu("Diagnostic");
+        JMenuItem diagnosticMenu = new JMenu("Diagnóstico");
 
-        JMenuItem browseApp = new JMenuItem("Browse App folder...", iconCache.getIcon(IconCache.Icon.FOLDER_ICON));
-        browseApp.setToolTipText(FileUtilities.getParentDirectory(SystemUtilities.getJarPath()));
-        browseApp.setMnemonic(KeyEvent.VK_O);
-        browseApp.addActionListener(e -> ShellUtilities.browseAppDirectory());
-        diagnosticMenu.add(browseApp);
+        // JMenuItem browseApp = new JMenuItem("Browse App folder...", iconCache.getIcon(IconCache.Icon.FOLDER_ICON));
+        // browseApp.setToolTipText(FileUtilities.getParentDirectory(SystemUtilities.getJarPath()));
+        // browseApp.setMnemonic(KeyEvent.VK_O);
+        // browseApp.addActionListener(e -> ShellUtilities.browseAppDirectory());
+        // diagnosticMenu.add(browseApp);
 
-        JMenuItem browseUser = new JMenuItem("Browse User folder...", iconCache.getIcon(IconCache.Icon.FOLDER_ICON));
-        browseUser.setToolTipText(FileUtilities.USER_DIR.toString());
-        browseUser.setMnemonic(KeyEvent.VK_U);
-        browseUser.addActionListener(e -> ShellUtilities.browseDirectory(FileUtilities.USER_DIR));
-        diagnosticMenu.add(browseUser);
+        // JMenuItem browseUser = new JMenuItem("Browse User folder...", iconCache.getIcon(IconCache.Icon.FOLDER_ICON));
+        // browseUser.setToolTipText(FileUtilities.USER_DIR.toString());
+        // browseUser.setMnemonic(KeyEvent.VK_U);
+        // browseUser.addActionListener(e -> ShellUtilities.browseDirectory(FileUtilities.USER_DIR));
+        // diagnosticMenu.add(browseUser);
 
-        JMenuItem browseShared = new JMenuItem("Browse Shared folder...", iconCache.getIcon(IconCache.Icon.FOLDER_ICON));
-        browseShared.setToolTipText(FileUtilities.SHARED_DIR.toString());
-        browseShared.setMnemonic(KeyEvent.VK_S);
-        browseShared.addActionListener(e -> ShellUtilities.browseDirectory(FileUtilities.SHARED_DIR));
-        diagnosticMenu.add(browseShared);
+        // JMenuItem browseShared = new JMenuItem("Browse Shared folder...", iconCache.getIcon(IconCache.Icon.FOLDER_ICON));
+        // browseShared.setToolTipText(FileUtilities.SHARED_DIR.toString());
+        // browseShared.setMnemonic(KeyEvent.VK_S);
+        // browseShared.addActionListener(e -> ShellUtilities.browseDirectory(FileUtilities.SHARED_DIR));
+        // diagnosticMenu.add(browseShared);
 
-        diagnosticMenu.add(new JSeparator());
+        // diagnosticMenu.add(new JSeparator());
 
-        JCheckBoxMenuItem notificationsItem = new JCheckBoxMenuItem("Show all notifications");
-        notificationsItem.setToolTipText("Shows all connect/disconnect messages, useful for debugging purposes");
+        JCheckBoxMenuItem notificationsItem = new JCheckBoxMenuItem("Mostrar todas as notificações");
+        notificationsItem.setToolTipText("Mostra todas as mensagens de conexão/desconexão, útil para testes");
         notificationsItem.setMnemonic(KeyEvent.VK_S);
         notificationsItem.setState(prefs.getBoolean(Constants.PREFS_NOTIFICATIONS, false));
         notificationsItem.addActionListener(notificationsListener);
         diagnosticMenu.add(notificationsItem);
 
-        JCheckBoxMenuItem monocleItem = new JCheckBoxMenuItem("Use Monocle for HTML");
-        monocleItem.setToolTipText("Use monocle platform for HTML printing (restart required)");
+        JCheckBoxMenuItem monocleItem = new JCheckBoxMenuItem("Usar Monocle para HTML");
+        monocleItem.setToolTipText("Usar monocle para impressão HTML (precisa reiniciar)");
         monocleItem.setMnemonic(KeyEvent.VK_U);
         monocleItem.setState(prefs.getBoolean(Constants.PREFS_MONOCLE, true));
         if(!SystemUtilities.hasMonocle()) {
@@ -264,25 +264,24 @@ public class TrayManager {
 
         diagnosticMenu.add(new JSeparator());
 
-        JMenuItem logItem = new JMenuItem("View logs (live feed)...", iconCache.getIcon(IconCache.Icon.LOG_ICON));
+        JMenuItem logItem = new JMenuItem("Ver logs (ao vivo)...", iconCache.getIcon(IconCache.Icon.LOG_ICON));
         logItem.setMnemonic(KeyEvent.VK_L);
         logItem.addActionListener(logListener);
         diagnosticMenu.add(logItem);
         logDialog = new LogDialog(logItem, iconCache);
         componentList.add(logDialog);
 
-        JMenuItem zipLogs = new JMenuItem("Zip logs (to Desktop)");
-        zipLogs.setToolTipText("Zip diagnostic logs, place on Desktop");
+        JMenuItem zipLogs = new JMenuItem("Salvar logs como zip (Área de trabalho)");
         zipLogs.setMnemonic(KeyEvent.VK_Z);
         zipLogs.addActionListener(e -> FileUtilities.zipLogs());
         diagnosticMenu.add(zipLogs);
 
-        JMenuItem desktopItem = new JMenuItem("Create Desktop shortcut", iconCache.getIcon(IconCache.Icon.DESKTOP_ICON));
+        JMenuItem desktopItem = new JMenuItem("Criar atalho na área de trabalho", iconCache.getIcon(IconCache.Icon.DESKTOP_ICON));
         desktopItem.setMnemonic(KeyEvent.VK_D);
         desktopItem.addActionListener(desktopListener());
 
-        anonymousItem = new JCheckBoxMenuItem("Block anonymous requests");
-        anonymousItem.setToolTipText("Blocks all requests that do not contain a valid certificate/signature");
+        anonymousItem = new JCheckBoxMenuItem("Bloquear requisições anônimas");
+        anonymousItem.setToolTipText("Bloquear todas as requisições que não possuirem um certificado válido");
         anonymousItem.setMnemonic(KeyEvent.VK_K);
         anonymousItem.setState(Certificate.UNKNOWN.isBlocked());
         anonymousItem.addActionListener(anonymousListener);
@@ -296,11 +295,11 @@ public class TrayManager {
         advancedMenu.add(new JSeparator());
         advancedMenu.add(anonymousItem);
 
-        JMenuItem reloadItem = new JMenuItem("Reload", iconCache.getIcon(IconCache.Icon.RELOAD_ICON));
+        JMenuItem reloadItem = new JMenuItem("Recarregar", iconCache.getIcon(IconCache.Icon.RELOAD_ICON));
         reloadItem.setMnemonic(KeyEvent.VK_R);
         reloadItem.addActionListener(reloadListener);
 
-        JMenuItem aboutItem = new JMenuItem("About...", iconCache.getIcon(IconCache.Icon.ABOUT_ICON));
+        JMenuItem aboutItem = new JMenuItem("Sobre...", iconCache.getIcon(IconCache.Icon.ABOUT_ICON));
         aboutItem.setMnemonic(KeyEvent.VK_B);
         aboutItem.addActionListener(aboutListener);
         aboutDialog = new AboutDialog(aboutItem, iconCache);
@@ -313,7 +312,7 @@ public class TrayManager {
 
         JSeparator separator = new JSeparator();
 
-        JCheckBoxMenuItem startupItem = new JCheckBoxMenuItem("Automatically start");
+        JCheckBoxMenuItem startupItem = new JCheckBoxMenuItem("Iniciar automaticamente");
         startupItem.setMnemonic(KeyEvent.VK_S);
         startupItem.setState(FileUtilities.isAutostart());
         startupItem.addActionListener(startupListener());
@@ -323,7 +322,7 @@ public class TrayManager {
             startupItem.setToolTipText("Autostart has been disabled by the administrator");
         }
 
-        JMenuItem exitItem = new JMenuItem("Exit", iconCache.getIcon(IconCache.Icon.EXIT_ICON));
+        JMenuItem exitItem = new JMenuItem("Sair", iconCache.getIcon(IconCache.Icon.EXIT_ICON));
         exitItem.addActionListener(exitListener);
 
         popup.add(advancedMenu);
