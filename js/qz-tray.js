@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * @version 2.1.3
+ * @version 2.1.4
  * @overview QZ Tray Connector
  * <p/>
  * Connects a web client to the QZ Tray software.
@@ -38,7 +38,7 @@ var qz = (function() {
 ///// PRIVATE METHODS /////
 
     var _qz = {
-        VERSION: "2.1.3",                              //must match @version above
+        VERSION: "2.1.4",                              //must match @version above
         DEBUG: false,
 
         log: {
@@ -373,7 +373,10 @@ var qz = (function() {
                         });
                     }
 
-                    _qz.security.callCert().then(sendCert).catch(sendCert);
+                    _qz.security.callCert().then(sendCert).catch(function(error) {
+                        _qz.log.warn("Failed to get certificate:", error);
+                        sendCert(null);
+                    });
                 },
 
                 /** Generate unique ID used to map a response to a call. */

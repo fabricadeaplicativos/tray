@@ -142,11 +142,12 @@
                         <a href="https://qz.io/wiki/What-is-Raw-Printing" target="new">What is Raw Printing?</a>
 
                         <span style="float: right;">
-                            <a href="javascript:findPrinter('Zebra', true);">Zebra</a> |
-                            <a href="javascript:findPrinter('ZDesigner', true);">ZDesigner</a> |
-                            <a href="javascript:findPrinter('Epson', true);">Epson</a> |
-                            <a href="javascript:findPrinter('Citizen', true);">Citizen</a> |
-                            <a href="javascript:findPrinter('Star', true);">Star</a>
+                            <a href="javascript:findPrinter('Zebra', true, 'ZPL');">Zebra</a> |
+                            <a href="javascript:findPrinter('ZDesigner', true, 'ZPL');">ZDesigner</a> |
+                            <a href="javascript:findPrinter('SATO', true, 'SBPL');">SATO</a> |
+                            <a href="javascript:findPrinter('Epson', true, 'ESCPOS');">Epson</a> |
+                            <a href="javascript:findPrinter('Citizen', true, 'ESCPOS');">Citizen</a> |
+                            <a href="javascript:findPrinter('Star', true, 'ESCPOS');">Star</a>
                         </span>
                     </div>
                 </div>
@@ -179,6 +180,10 @@
                                     <input type="radio" name="pLanguage" id="pLangEVOLIS" value="EVOLIS" />
                                     Evolis
                                 </label>
+                                <label>
+                                    <input type="radio" name="pLanguage" id="pLangSBPL" value="SBPL" />
+                                    SBPL
+                                </label>
                             </div>
                         </div>
                         <div class="form-group">
@@ -189,6 +194,7 @@
                                 <button type="button" class="btn btn-default" onclick="printFile('zpl_sample.txt');">zpl_sample.txt</button>
                                 <button type="button" class="btn btn-default" onclick="printFile('fgl_sample.txt');">fgl_sample.txt</button>
                                 <button type="button" class="btn btn-default" onclick="printFile('epl_sample.txt');">epl_sample.txt</button>
+                                <button type="button" class="btn btn-default" onclick="printFile('sbpl_sample.txt');">sbpl_sample.txt</button>
                             </div>
                         </div>
                     </div>
@@ -1395,17 +1401,19 @@
     }
 
     function startConnection(config) {
-        host = $('#connectionHost').val().trim();
-        usingSecure = $("#connectionUsingSecure").prop('checked');
+        var host = $('#connectionHost').val().trim();
+        var usingSecure = $("#connectionUsingSecure").prop('checked');
+
         // Connect to a print-server instance, if specified
-        if(host != "" && host != 'localhost') {
-            if(config) {
+        if (host != "" && host != 'localhost') {
+            if (config) {
                 config.host = host;
                 config.usingSecure = usingSecure;
             } else {
-                config = { host: host,  usingSecure: usingSecure };
+                config = { host: host, usingSecure: usingSecure };
             }
         }
+
         if (!qz.websocket.isActive()) {
             updateState('Waiting', 'default');
 
@@ -1450,8 +1458,7 @@
 
         qz.networking.devices().then(function(data) {
             var list = '';
-            var hostname = '';
-            var username = '';
+
             for(var i = 0; i < data.length; i++) {
                 var info = data[i];
 
@@ -1460,8 +1467,8 @@
                         "   <strong>Hostname:</strong> <code>" + info.hostname + "</code>" +
                         "</li>" +
                         "<li>" +
-                        "   <strong>Username:</strong> <code>" + info.username + "</code>"
-                    "</li>";
+                        "   <strong>Username:</strong> <code>" + info.username + "</code>" +
+                        "</li>";
                 }
                 list += "<li>" +
                     "   <strong>Interface:</strong> <code>" + (info.name || "UNKNOWN") + (info.id ? "</code> (<code>" + info.id + "</code>)" : "</code>") +
@@ -1474,11 +1481,18 @@
     }
 
     /// Detection ///
-    function findPrinter(query, set) {
+    function findPrinter(query, set, radio) {
         $("#printerSearch").val(query);
         qz.printers.find(query).then(function(data) {
             displayMessage("<strong>Found:</strong> " + data);
             if (set) { setPrinter(data); }
+            if(radio) {
+                var input = document.querySelector("input[value='" + radio + "']");
+                if(input) {
+                    input.checked = true;
+                    $(input.parentElement).fadeOut(300).fadeIn(500);
+                }
+            }
         }).catch(displayError);
     }
 
@@ -1564,6 +1578,13 @@
                     { type: 'raw', format: 'image', data: 'assets/img/fade-test.png', options: { language: "EVOLIS", precision: 128 } },
                     '\x1BWt;50;60;0;30;Printed using QZ Tray ' + qzVersion + '\x0D', // 50,60 = coordinates; 0 = arial font
                     '\x1BSe\x0D'       // End of sequence
+                ];
+                break;
+            case 'SBPL':
+                printData = [
+                    '\x1BA',
+                    '\x1BH0100\x1BV0100\x1BXSPRINTED WITH QZ ' + qzVersion,
+                    '\x1BQ1\x1BZ'
                 ];
                 break;
             default:
@@ -1790,6 +1811,14 @@
                 printData = [
                     //defaults to 'flavor: file'
                     { type: 'raw', format: 'image', data: 'assets/img/image_sample_bw.png', options: opts },
+                ];
+                break;
+            case 'SBPL':
+                printData = [
+                    '\x1BA',
+                    '\x1BH0100\x1BV0100',
+                    { type: 'raw', format: 'image', data: 'assets/img/image_sample_bw.png', options: opts },
+                    '\x1BQ1\x1BZ'
                 ];
                 break;
             default:
@@ -2379,7 +2408,14 @@
     function resetGeneralOptions() {
         //connection
         $("#connectionHost").val('localhost');
-        $("#connectionUsingSecure").prop('disabled', location.protocol !== 'https:');
+
+        var secureOpt = $("#connectionUsingSecure");
+        if (location.protocol !== 'https:') {
+            secureOpt.prop('disabled', true);
+            secureOpt.prop('checked', false);
+        } else {
+            secureOpt.prop('disabled', false);
+        }
     }
 
     function resetRawOptions() {

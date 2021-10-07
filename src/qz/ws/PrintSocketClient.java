@@ -5,6 +5,8 @@ import org.apache.commons.io.IOUtils;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.websocket.api.CloseException;
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.WebSocketException;
 import org.eclipse.jetty.websocket.api.annotations.*;
@@ -33,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeoutException;
 
 
 @WebSocket
@@ -46,6 +49,11 @@ public class PrintSocketClient {
     //websocket port -> Connection
     private static final HashMap<Integer,SocketConnection> openConnections = new HashMap<>();
 
+    private Server server;
+
+    public PrintSocketClient(Server server) {
+        this.server = server;
+    }
 
     @OnWebSocketConnect
     public void onConnect(Session session) {
@@ -76,6 +84,12 @@ public class PrintSocketClient {
     @OnWebSocketError
     public void onError(Session session, Throwable error) {
         if (error instanceof EOFException) { return; }
+
+        if (error instanceof CloseException && error.getCause() instanceof TimeoutException) {
+            log.error("Timeout error (Lost connection with client)", error);
+            return;
+        }
+
         log.error("Connection error", error);
         trayManager.displayErrorMessage(error.getMessage());
     }
@@ -205,6 +219,10 @@ public class PrintSocketClient {
                 && !allowedFromDialog(request, prompt, findDialogPosition(session, json.optJSONObject("position")))) {
             sendError(session, UID, "Request blocked");
             return;
+        }
+
+        if (call != SocketMethod.GET_VERSION) {
+            trayManager.voidIdleActions();
         }
 
         // used in usb calls
@@ -569,22 +587,36 @@ public class PrintSocketClient {
                 break;
             }
             case NETWORKING_DEVICE_LEGACY:
-                JSONObject networkDevice = NetworkUtilities.getDeviceJSON(params.optString("hostname", "google.com"), params.optInt("port", 443));
+                JSONObject networkDevice = NetworkUtilities.getDeviceJSON(params);
                 JSONObject legacyDevice = new JSONObject();
                 legacyDevice.put("ipAddress", networkDevice.optString("ip", null));
                 legacyDevice.put("macAddress", networkDevice.optString("mac", null));
                 sendResult(session, UID, legacyDevice);
                 break;
             case NETWORKING_DEVICE:
-                sendResult(session, UID, NetworkUtilities.getDeviceJSON(params.optString("hostname", "google.com"), params.optInt("port", 443)));
+                sendResult(session, UID, NetworkUtilities.getDeviceJSON(params));
                 break;
             case NETWORKING_DEVICES:
-                sendResult(session, UID, NetworkUtilities.getDevicesJSON(params.optString("hostname", "google.com"), params.optInt("port", 443)));
+                sendResult(session, UID, NetworkUtilities.getDevicesJSON(params));
                 break;
             case GET_VERSION:
                 sendResult(session, UID, Constants.VERSION);
                 break;
+            case WEBSOCKET_STOP:
+                log.info("Another instance of {} is asking this to close", Constants.ABOUT_TITLE);
+                String challenge = json.optString("challenge", "");
+                if(SystemUtilities.validateSaltedChallenge(challenge)) {
+                    log.info("Challenge validated: {}, honoring shutdown request", challenge);
 
+                    session.close(SingleInstanceChecker.REQUEST_INSTANCE_TAKEOVER);
+                    try {
+                        server.stop();
+                    } catch(Exception ignore) {}
+                    trayManager.exit(0);
+                } else {
+                    log.warn("A valid challenge was not provided: {}, ignoring request to close", challenge);
+                }
+                break;
             case INVALID:
             default:
                 sendError(session, UID, "Invalid function call: " + json.optString("call", "NONE"));

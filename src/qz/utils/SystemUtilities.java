@@ -12,6 +12,9 @@ package qz.utils;
 
 import com.github.zafarkhaja.semver.Version;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.ssl.Base64;
+import org.joor.Reflect;
+import org.joor.ReflectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qz.common.Constants;
@@ -22,12 +25,15 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Random;
 import java.util.TimeZone;
 
 import static com.sun.jna.platform.win32.WinReg.*;
@@ -43,6 +49,15 @@ public class SystemUtilities {
     private static final String OS_NAME = System.getProperty("os.name").toLowerCase(Locale.ENGLISH);
     private static final Logger log = LoggerFactory.getLogger(TrayManager.class);
     private static final Locale defaultLocale = Locale.getDefault();
+
+    static {
+        if(!isWindows() && !isMac()) {
+            // Force hid4java to use libusb: https://github.com/qzind/tray/issues/853
+            try {
+                Reflect.on("org.hid4java.jna.HidApi").set("useLibUsbVariant", true);
+            } catch(ReflectException ignore) {}
+        }
+    }
 
     private static Boolean darkDesktop;
     private static Boolean darkTaskbar;
@@ -109,6 +124,13 @@ public class SystemUtilities {
         } else {
             return ShellUtilities.executeRaw("whoami").trim().equals("root");
         }
+    }
+
+    public static int getProcessId() {
+        if(isWindows()) {
+            return WindowsUtilities.getProcessId();
+        }
+        return MacUtilities.getProcessId(); // works for Linux too
     }
 
     /**
@@ -359,7 +381,7 @@ public class SystemUtilities {
         if (Constants.MASK_TRAY_SUPPORTED) {
             if (SystemUtilities.isMac()) {
                 // Assume a pid of -1 is a broken JNA
-                return MacUtilities.getProcessID() != -1;
+                return MacUtilities.getProcessId() != -1;
             } else if (SystemUtilities.isWindows() && SystemUtilities.getOSVersion().getMajorVersion() >= 10) {
                 return true;
             }
@@ -370,11 +392,11 @@ public class SystemUtilities {
     public static boolean setSystemLookAndFeel() {
         try {
             UIManager.getDefaults().put("Button.showMnemonics", Boolean.TRUE);
-            boolean darkulaThemeNeeded = true;
+            boolean darculaThemeNeeded = true;
             if(!isMac() && (isUnix() && UbuntuUtilities.isDarkMode())) {
-                darkulaThemeNeeded = false;
+                darculaThemeNeeded = false;
             }
-            if(isDarkDesktop() && darkulaThemeNeeded) {
+            if(isDarkDesktop() && darculaThemeNeeded) {
                 UIManager.setLookAndFeel("com.bulenkov.darcula.DarculaLaf");
             } else {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -536,5 +558,103 @@ public class SystemUtilities {
             }
         }
         return hasMonocle;
+    }
+
+    public static final Version[] JDK_8266929_VERSIONS = {
+            Version.valueOf("11.0.11"),
+            Version.valueOf("1.8.0+291"),
+            Version.valueOf("1.8.0+292")
+    };
+
+    /**
+     * Fixes JDK-8266929 by clearing the oidTable
+     * See also: https://github.com/qzind/tray/issues/814
+     */
+    public static void clearAlgorithms() {
+        boolean needsPatch = false;
+        for(Version affected : JDK_8266929_VERSIONS) {
+            if(affected.getMajorVersion() == 1) {
+                // Java 1.8 honors build/update information
+                if(affected.compareWithBuildsTo(Constants.JAVA_VERSION) == 0) {
+                    needsPatch = true;
+                }
+            } else if (affected.compareTo(Constants.JAVA_VERSION) == 0) {
+                // Java 9.0+ ignores build/update information
+                needsPatch = true;
+            }
+        }
+        if(!needsPatch) {
+            log.debug("Skipping JDK-8266929 patch for {}", Constants.JAVA_VERSION);
+            return;
+        }
+        try {
+            log.info("Applying JDK-8266929 patch");
+            Class<?> algorithmIdClass = Class.forName("sun.security.x509.AlgorithmId");
+            java.lang.reflect.Field oidTableField = algorithmIdClass.getDeclaredField("oidTable");
+            oidTableField.setAccessible(true);
+            // Set oidTable to null
+            oidTableField.set(algorithmIdClass, null);
+            // Java 1.8
+            if(Constants.JAVA_VERSION.getMajorVersion() == 1) {
+                java.lang.reflect.Field initOidTableField = algorithmIdClass.getDeclaredField("initOidTable");
+                initOidTableField.setAccessible(true);
+                // Set init flag back to false
+                initOidTableField.set(algorithmIdClass, false);
+            }
+            log.info("Successfully applied JDK-8266929 patch");
+        } catch (Exception e) {
+            log.warn("Unable to apply JDK-8266929 patch.  Some algorithms may fail.", e);
+        }
+    }
+
+    /**
+     * A challenge which can only be calculated by an app installed and running on this machine
+     * Calculates two bytes:
+     * - First byte is a salted version of the timestamp of qz-tray.jar
+     * - Second byte is a throw-away byte
+     * - Bytes are converted to Base64 and returned as a String
+     */
+    public static String calculateSaltedChallenge() {
+        int salt = new Random().nextInt(9);
+        long salted = (calculateChallenge() * 10) + salt;
+        long obfuscated = salted * new Random().nextInt(9);
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES * 2);
+        buffer.putLong(obfuscated);
+        buffer.putLong(0, salted);
+        return new String(Base64.encodeBase64(buffer.array(), false), StandardCharsets.UTF_8);
+    }
+
+    private static long calculateChallenge() {
+        if(getJarPath() != null) {
+            File jarFile = new File(getJarPath());
+            if (jarFile.exists()) {
+                return jarFile.lastModified();
+            }
+        }
+        return -1L; // Fallback when running from IDE
+    }
+
+    /**
+     * Decodes challenge string to see if it originated from this application
+     * - Base64 string is decoded into two bytes
+     * - First byte is unsalted
+     * - Second byte is ignored
+     * - If unsalted value of first byte matches the timestamp of qz-tray.jar, return true
+     * - If unsalted value doesn't match or if any exceptions occurred, we assume the message is invalid
+     */
+    public static boolean validateSaltedChallenge(String message) {
+        try {
+            log.info("Attempting to validating challenge: {}", message);
+            byte[] decoded = Base64.decodeBase64(message);
+            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES * 2);
+            buffer.put(decoded);
+            buffer.flip();//need flip
+            long salted = buffer.getLong(0); // only first byte matters
+            long challenge = salted / 10L;
+            return challenge == calculateChallenge();
+        } catch(Exception ignore) {
+            log.warn("An exception occurred validating challenge: {}", message, ignore);
+        }
+        return false;
     }
 }

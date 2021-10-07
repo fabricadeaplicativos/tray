@@ -4,15 +4,18 @@
 
 !include StrRep.nsh
 !include IndexOf.nsh
+!include StrTok.nsh
 
 ; Resulting variable
 Var /GLOBAL java
 Var /GLOBAL javaw
+Var /GLOBAL java_major
 
 ; Constants
 !define EXE "java.exe"
 
 !define ADOPT "SOFTWARE\Classes\AdoptOpenJDK.jarfile\shell\open\command"
+!define ECLIPSE "SOFTWARE\Classes\Eclipse Foundation.jarfile\shell\open\command"
 
 !define JRE "Software\JavaSoft\Java Runtime Environment"
 !define JRE32 "Software\Wow6432Node\JavaSoft\Java Runtime Environment"
@@ -20,6 +23,15 @@ Var /GLOBAL javaw
 !define JDK32 "Software\Wow6432Node\JavaSoft\JDK"
 
 ; Macros
+!macro _ReadEclipseKey
+    ClearErrors
+    ReadRegStr $0 HKLM "${ECLIPSE}" ""
+    StrCpy $0 "$0" "" 1 ; Remove first double-quote
+    ${IndexOf} $1 $0 "$\"" ; Find the index of second double-quote
+    StrCpy $0 "$0" $1 ; Get the string section up to the index
+    IfFileExists "$0" Found
+!macroend
+
 !macro _ReadAdoptKey
     ClearErrors
     ReadRegStr $0 HKLM "${ADOPT}" ""
@@ -66,6 +78,7 @@ Var /GLOBAL javaw
         !insertmacro _ReadEnv "JAVA_HOME"
 
         ; Check registry
+        !insertmacro _ReadEclipseKey
         !insertmacro _ReadAdoptKey
         !insertmacro _ReadReg "${JRE}"
         !insertmacro _ReadReg "${JRE32}"
@@ -80,6 +93,22 @@ Var /GLOBAL javaw
         StrCpy $java $0
         ${StrRep} '$java' '$java' 'javaw.exe' '${EXE}' ; AdoptOpenJDK returns "javaw.exe"
         ${StrRep} '$javaw' '$java' '${EXE}' 'javaw.exe'
+
+        ; Detect java version
+        nsExec::ExecToStack '"$java" -version'
+        Pop $0
+        Pop $1
+        ; Isolate version number, e.g. "1.8.0"
+        ${StrTok} $0 "$1" "$\"" "1" "1"
+        ; Isolate major version
+        ${StrTok} $R0 "$0" "." "0" "1"
+        ; Handle old 1.x.x version format
+        ${If} "$R0" == "1"
+            ${StrTok} $R0 "$0" "." "1" "1"
+        ${EndIf}
+
+        ; Convert to integer
+        IntOp $java_major $R0 + 0
     FunctionEnd
 !macroend
 
